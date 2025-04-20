@@ -59,7 +59,7 @@ class ScaledData(namedtuple('ScaledData', ['x', 'y', 'dy'])):
     __slots__ = ()
 
 
-def scaledata(l, rho, a, da, rho_c, nu, zeta):
+def scaledata(l, rho, a, da, rho_c, nu, zeta, **kwargs):
     r'''
     Scale experimental data according to critical exponents
 
@@ -298,7 +298,6 @@ def _jprimes(x, i, x_bounds=None):
         j_primes[i_prime][:] = jprimes
 
     return j_primes
-
 
 def _select_mask(j, j_primes):
     """
@@ -599,8 +598,25 @@ def autoscale(l, rho, a, da, rho_c0, nu0, zeta0, x_bounds=None, **kwargs):
     >>> # run autoscale
     >>> res = fssa.autoscale(l=l, rho=rho, a=a, da=da, rho_c0=0.9, nu0=2.0, zeta0=0.0)
     """
-
+    # identify which parameters to optimize
+    optimize_rho_c = kwargs.pop('optimize_rho_c', True)
+    optimize_nu = kwargs.pop('optimize_nu', True)
+    optimize_zeta = kwargs.pop('optimize_zeta', True)
+    
+    optimize_mask = [optimize_rho_c, optimize_nu, optimize_zeta]
+    
+    optimize_params_names = ['rho_c', 'nu', 'zeta']
+    for i, mask in enumerate(optimize_mask):
+        if mask:
+            print('Optimizing parameter {}'.format(optimize_params_names[i]))
+    
+    initial_params = [rho_c0, nu0, zeta0]
     def goal_function(x):
+        x = np.array(x)
+        for i, mask in enumerate(optimize_mask):
+            if not mask:
+                x = np.insert(x, i, initial_params[i])
+                # x.insert(i, initial_params[i])
         my_x, my_y, my_dy = scaledata(
             rho=rho, l=l, a=a, da=da, nu=x[1], zeta=x[2], rho_c=x[0],
         )
@@ -608,13 +624,17 @@ def autoscale(l, rho, a, da, rho_c0, nu0, zeta0, x_bounds=None, **kwargs):
             my_x, my_y, my_dy, x_bounds=x_bounds,
         )
 
+    optimize_params = [initial_params[i] for i in range(3) if optimize_mask[i]]
+    
     ret = scipy.optimize.minimize(
         goal_function,
-        [rho_c0, nu0, zeta0],
+        optimize_params,
+        # [rho_c0, nu0, zeta0],
         method=_minimize_neldermead,
         options={
             'xtol': 1e-2,
             'ftol': 1e-2,
+            'disp': True,
         }
     )
 
@@ -626,7 +646,12 @@ def autoscale(l, rho, a, da, rho_c0, nu0, zeta0, x_bounds=None, **kwargs):
 
     ret['varco'] = varco
     ret['errors'] = errors
+    
+    for i, mask in enumerate(optimize_mask):
+        if not mask:
+            ret['x'] = np.insert(ret['x'], i, initial_params[i])
+            ret['errors'] = np.insert(ret['errors'], i, 0)
     ret['rho'], ret['nu'], ret['zeta'] = ret['x']
     ret['drho'], ret['dnu'], ret['dzeta'] = ret['errors']
-
+    
     return ret

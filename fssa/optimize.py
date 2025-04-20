@@ -9,7 +9,7 @@
 from __future__ import absolute_import, division, print_function
 
 import numpy
-from numpy import asfarray
+from numpy import asarray
 from scipy.optimize.optimize import (OptimizeResult,
                                      _status_message, wrap_function)
 
@@ -41,7 +41,7 @@ def _minimize_neldermead(func, x0, args=(), callback=None,
     retall = return_all
 
     fcalls, func = wrap_function(func, args)
-    x0 = asfarray(x0).flatten()
+    x0 = asarray(x0, dtype=float).flatten()
     N = len(x0)
     if maxiter is None:
         maxiter = N * 200
